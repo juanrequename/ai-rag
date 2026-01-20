@@ -3,6 +3,7 @@
 > A full-stack Retrieval-Augmented Generation (RAG) application for querying PDF CVs/resumes using natural language.
 
 ▶️ **Watch Demo Video**
+
 [![Watch Demo Video](https://cdn.loom.com/sessions/thumbnails/c55eb7c90c564ec2acf4a0774a3b50b2-1f9699a5eddd3581-full-play.gif#t=0.1)](https://www.loom.com/share/c55eb7c90c564ec2acf4a0774a3b50b2)
 
 
