@@ -69,7 +69,7 @@ class VectorStoreService:
         return ids
 
     def similarity_search(
-        self, query: str, k: int = 4, filter_dict: dict[str, str] | None = None
+        self, query: str, k: int = 3, filter_dict: dict[str, str] | None = None
     ) -> list[LangchainDocument]:
         """
         Search for similar documents.
@@ -93,7 +93,7 @@ class VectorStoreService:
         return results
 
     def similarity_search_with_score(
-        self, query: str, k: int = 4, filter_dict: dict[str, str] | None = None
+        self, query: str, k: int = 3, filter_dict: dict[str, str] | None = None
     ) -> list[tuple[LangchainDocument, float]]:
         """
         Search for similar documents with relevance scores.
@@ -128,7 +128,7 @@ class VectorStoreService:
         logger.info("Deleted chunks for document: %s", document_id)
 
     def get_retriever(
-        self, k: int = 4, filter_dict: dict[str, str] | None = None
+        self, k: int = 3, filter_dict: dict[str, str] | None = None
     ) -> VectorStoreRetriever:
         """
         Get a retriever for use with LangChain chains.

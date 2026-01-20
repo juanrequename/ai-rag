@@ -34,7 +34,7 @@ class RAGService:
     async def query_stream(
         self,
         question: str,
-        k: int = 4,
+        k: int = 3,
         document_id: str | None = None,
     ):
         """
@@ -111,7 +111,7 @@ Context:
     def get_relevant_chunks(
         self,
         question: str,
-        k: int = 4,
+        k: int = 3,
         document_id: str | None = None,
     ) -> list[dict[str, str | float]]:
         """
