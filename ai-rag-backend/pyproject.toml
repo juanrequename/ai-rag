@@ -1,0 +1,69 @@
+[project]
+name = "app"
+version = "0.1.0-alpha"
+description = "FastAPI project generated using minimal-fastapi-postgres-template."
+authors = [{ name = "admin", email = "admin@example.com" }]
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.17.1",
+    "asyncpg>=0.30.0",
+    "bcrypt>=5.0.0",
+    "fastapi>=0.120.4",
+    "pydantic[dotenv,email]>=2.12.3",
+    "pydantic-settings>=2.11.0",
+    "python-multipart>=0.0.20",
+    "sqlalchemy[asyncio]>=2.0.44",
+    # RAG dependencies
+    "langchain>=1.2.6",
+    "langchain-community>=0.4.1",
+    "langchain-openai>=1.1.7",
+    "langchain-postgres>=0.0.16",
+    "langchain-text-splitters>=1.1.0",
+    "langgraph>=0.4.0",
+    "pgvector>=0.3.6",
+    "pypdf>=6.6.0",
+    "fpdf>=1.7.2",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.11.0",
+    "freezegun>=1.5.5",
+    "greenlet>=3.2.4",
+    "httpx>=0.28.1",
+    "mypy>=1.18.2",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.14.3",
+    "uvicorn[standard]>=0.38.0",
+]
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.pytest.ini_options]
+addopts = "-vv -n auto --cov --cov-report xml --cov-report term-missing --cov-fail-under=100"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_mode = "auto"
+testpaths = ["app/tests"]
+
+[tool.coverage.run]
+concurrency = ["greenlet"]
+omit = ["app/tests/*"]
+source = ["app"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, pylint, pyupgrade
+ignore = ["E501"]
+select = ["E", "F", "I", "PL", "UP", "W"]
