@@ -17,29 +17,34 @@
 │              (ReactJS + NodeJS + Next.js + AI SDK)                  │
 │                                                                     │
 │   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐     │
-│   │  Chat UI    │───▶│  /api/chat  │───▶│  Streaming Response │     │
-│   │  Component  │    │   Route     │    │                     │     |
+│   │  Chat UI    │───▶│/api/chat-rag│───▶│  Streaming Response │     │
+│   │  Component  │    │   Route     │    │ (NDJSON over HTTP)  │     │
 │   └─────────────┘    └─────────────┘    └─────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       Backend                                       │
-│           (Python 3.13 + FastAPI + LangChain + SQLAlchemy)          │
+│           (Python + FastAPI + LangChain + SQLAlchemy)               │
 │                                                                     │
 │   ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐     │
 │   │ RAG Service │───▶│Vector Store │───▶│    LLM (OpenAI)     │     │
 │   │             │    │  (pgvector) │    │                     │     │
 │   └─────────────┘    └─────────────┘    └─────────────────────┘     │
+│                                                                     │
+│  RAG Workflow:                                                      │
+│   1) Embed query → vector search in pgvector                        │
+│   2) Retrieve top-k relevant chunks                                 │
+│   3) Augment user prompt with retrieved context                     │
+│   4) Generate a grounded answer with the LLM                        │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    PostgreSQL + pgvector                            │
-│                (Document storage + Vector embeddings)               │
+│         (Document storage + Vector embeddings for retrieval)        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
-
 
 
 
