@@ -79,6 +79,6 @@ See the [Frontend README](./ai-rag-frontend/README.md) for detailed setup instru
 **Steps:**
 1. **Load CV PDFs** from the `pdf_files/` directory  
 2. **Parse PDF Content** using PyPDF2  
-3. **Split Text into Chunks** with LangChain’s text splitter (with overlap for context)  
+3. **Split Text into Chunks** with LangChain’s RecursiveCharacterTextSplitter (with overlap for context)  
 4. **Generate Embeddings** using OpenAI’s `text-embedding-3` model  
 5. **Store Vectors and Metadata** in PostgreSQL with the `pgvector` extension  
