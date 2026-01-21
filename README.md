@@ -9,6 +9,17 @@
 
 ---
 
+### Backend details & setup
+
+See the [Backend README](./ai-rag-backend/README.md) for detailed setup instructions.
+
+### Frontend details & setup
+
+See the [Frontend README](./ai-rag-frontend/README.md) for detailed setup instructions.
+
+---
+
+
 ## 🏗️ Architecture Diagram
 
 ```
@@ -46,13 +57,28 @@
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+---
 
 
 
-### Backend details & setup
+### 📄 Generate PDFs (CVs) Pipeline
 
-See the [Backend README](./ai-rag-backend/README.md) for detailed setup instructions.
+**Script:** `scripts/generate_pdfs.py`
 
-### Frontend details & setup
+**Steps:**
+1. **Generate Structured CV Data** using LangChain with GPT-4o-mini  
+2. **Validate Data** with Pydantic models (e.g., name, email, experience, education, etc.)  
+3. **Generate Profile Images** using the DALL·E API  
+4. **Create PDF Documents** and save them to the `pdf_files/` directory  
 
-See the [Frontend README](./ai-rag-frontend/README.md) for detailed setup instructions.
+
+### 📥 Ingest PDFs (CVs) Pipeline
+
+**Script:** `scripts/ingest_pdfs.py`
+
+**Steps:**
+1. **Load CV PDFs** from the `pdf_files/` directory  
+2. **Parse PDF Content** using PyPDF2  
+3. **Split Text into Chunks** with LangChain’s text splitter (with overlap for context)  
+4. **Generate Embeddings** using OpenAI’s `text-embedding-3` model  
+5. **Store Vectors and Metadata** in PostgreSQL with the `pgvector` extension  
