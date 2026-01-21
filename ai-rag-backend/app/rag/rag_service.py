@@ -3,13 +3,27 @@
 
 import json
 import logging
+from typing import AsyncGenerator
 
 from langchain_openai import ChatOpenAI
+from openai import OpenAIError
 
 from app.core.config import get_settings
 from app.rag.vector_store import VectorStoreService
 
 logger = logging.getLogger(__name__)
+
+
+class RAGServiceError(Exception):
+    """Base exception for RAG service errors."""
+
+    pass
+
+
+class VectorSearchError(RAGServiceError):
+    """Exception raised when vector search fails."""
+
+    pass
 
 
 class RAGService:
@@ -36,7 +50,7 @@ class RAGService:
         question: str,
         k: int = 3,
         document_id: str | None = None,
-    ):
+    ) -> AsyncGenerator[str, None]:
         """
         Stream the RAG query response token by token.
 
@@ -50,12 +64,42 @@ class RAGService:
 
         Yields:
             JSON string chunks with type and content
+
+
         """
-        # First, retrieve relevant documents synchronously
-        filter_dict = {"document_id": document_id} if document_id else None
-        retrieved_docs = self.vector_store_service.similarity_search(
-            question, k=k, filter_dict=filter_dict
+        logger.info(
+            "Processing RAG query: question_length=%d, k=%d, document_id=%s",
+            len(question),
+            k,
+            document_id,
         )
+
+        # Retrieve relevant documents with error handling
+        try:
+            filter_dict = {"document_id": document_id} if document_id else None
+            retrieved_docs = self.vector_store_service.similarity_search(
+                question, k=k, filter_dict=filter_dict
+            )
+            logger.debug("Retrieved %d documents from vector store", len(retrieved_docs))
+        except Exception as e:
+            error_msg = f"Failed to retrieve documents: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            yield json.dumps(
+                {"type": "error", "message": "Document retrieval failed"}
+            ) + "\n"
+            return
+
+        # Check if we got any results
+        if not retrieved_docs:
+            logger.warning("No relevant documents found for query")
+            yield json.dumps(
+                {
+                    "type": "warning",
+                    "message": "No relevant documents found. Please try a different question.",
+                }
+            ) + "\n"
+            yield json.dumps({"type": "done"}) + "\n"
+            return
 
         # Build context from retrieved documents
         context_parts = []
@@ -94,17 +138,47 @@ Context:
             {"role": "user", "content": question},
         ]
 
-        # Stream the LLM response
-        async for chunk in self.llm.astream(messages):
-            if chunk.content:
-                yield json.dumps({"type": "token", "content": chunk.content}) + "\n"
+        # Stream the LLM response with error handling
+        try:
+            token_count = 0
+            async for chunk in self.llm.astream(messages):
+                if chunk.content:
+                    token_count += 1
+                    yield json.dumps({"type": "token", "content": chunk.content}) + "\n"
+
+            logger.info(
+                "LLM streaming completed: tokens=%d, sources=%d",
+                token_count,
+                len(sources),
+            )
+
+        except OpenAIError as e:
+            error_msg = f"OpenAI API error: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            yield json.dumps(
+                {
+                    "type": "error",
+                    "message": "Failed to generate response. Please try again.",
+                }
+            ) + "\n"
+            return
+        except Exception as e:
+            error_msg = f"Unexpected error during LLM streaming: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            yield json.dumps(
+                {
+                    "type": "error",
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            ) + "\n"
+            return
 
         # Yield sources at the end
         yield json.dumps({"type": "sources", "sources": sources}) + "\n"
         yield json.dumps({"type": "done"}) + "\n"
 
         logger.info(
-            "RAG streaming query completed. Retrieved %d sources.",
+            "RAG streaming query completed successfully. Retrieved %d sources.",
             len(sources),
         )
 
@@ -124,24 +198,41 @@ Context:
 
         Returns:
             List of chunks with content and metadata
-        """
-        filter_dict = {"document_id": document_id} if document_id else None
 
-        results = self.vector_store_service.similarity_search_with_score(
-            question, k=k, filter_dict=filter_dict
+        Raises:
+            VectorSearchError: If document retrieval fails
+        """
+        logger.info(
+            "Retrieving relevant chunks: question_length=%d, k=%d, document_id=%s",
+            len(question),
+            k,
+            document_id,
         )
 
-        chunks: list[dict[str, str | float]] = []
-        for doc, score in results:
-            chunks.append(
-                {
-                    "content": doc.page_content,
-                    "document_id": doc.metadata.get("document_id", "unknown"),
-                    "filename": doc.metadata.get("filename", "unknown"),
-                    "full_name": doc.metadata.get("full_name", "Unknown"),
-                    "chunk_index": doc.metadata.get("chunk_index", 0),
-                    "similarity_score": float(score),
-                }
+        try:
+            filter_dict = {"document_id": document_id} if document_id else None
+
+            results = self.vector_store_service.similarity_search_with_score(
+                question, k=k, filter_dict=filter_dict
             )
 
-        return chunks
+            chunks: list[dict[str, str | float]] = []
+            for doc, score in results:
+                chunks.append(
+                    {
+                        "content": doc.page_content,
+                        "document_id": doc.metadata.get("document_id", "unknown"),
+                        "filename": doc.metadata.get("filename", "unknown"),
+                        "full_name": doc.metadata.get("full_name", "Unknown"),
+                        "chunk_index": doc.metadata.get("chunk_index", 0),
+                        "similarity_score": float(score),
+                    }
+                )
+
+            logger.info("Successfully retrieved %d chunks", len(chunks))
+            return chunks
+
+        except Exception as e:
+            error_msg = f"Failed to retrieve relevant chunks: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise VectorSearchError(error_msg) from e

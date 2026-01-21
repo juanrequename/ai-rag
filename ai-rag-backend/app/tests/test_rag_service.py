@@ -6,8 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.documents import Document as LangchainDocument
 from langchain_core.messages import AIMessageChunk
+from openai import OpenAIError
 
-from app.rag.rag_service import RAGService
+from app.rag.rag_service import RAGService, VectorSearchError
 from app.rag.vector_store import VectorStoreService
 
 
@@ -235,6 +236,91 @@ class TestQueryStream:
             "Question", k=10, filter_dict=None
         )
 
+    @pytest.mark.asyncio
+    async def test_emits_error_when_retrieval_fails(
+        self, rag_service: RAGService, mock_vector_store_service: MagicMock
+    ) -> None:
+        """Should emit error chunk when retrieval raises."""
+        mock_vector_store_service.similarity_search.side_effect = Exception(
+            "vector store down"
+        )
+
+        chunks = []
+        async for chunk in rag_service.query_stream("Question"):
+            chunks.append(json.loads(chunk.strip()))
+
+        assert chunks == [{"type": "error", "message": "Document retrieval failed"}]
+
+    @pytest.mark.asyncio
+    async def test_emits_error_on_openai_failure(
+        self, rag_service: RAGService, mock_vector_store_service: MagicMock
+    ) -> None:
+        """Should emit error chunk when OpenAI streaming fails."""
+        mock_vector_store_service.similarity_search.return_value = [
+            LangchainDocument(
+                page_content="Content",
+                metadata={
+                    "document_id": "doc-1",
+                    "filename": "cv_john.pdf",
+                    "full_name": "John Doe",
+                    "chunk_index": 0,
+                },
+            ),
+        ]
+
+        async def mock_stream(*args: object, **kwargs: object):
+            raise OpenAIError("boom")
+            if False:
+                yield  # pragma: no cover
+
+        rag_service.llm.astream = mock_stream
+
+        chunks = []
+        async for chunk in rag_service.query_stream("Question"):
+            chunks.append(json.loads(chunk.strip()))
+
+        assert chunks == [
+            {
+                "type": "error",
+                "message": "Failed to generate response. Please try again.",
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_emits_error_on_unexpected_stream_failure(
+        self, rag_service: RAGService, mock_vector_store_service: MagicMock
+    ) -> None:
+        """Should emit error chunk when streaming fails unexpectedly."""
+        mock_vector_store_service.similarity_search.return_value = [
+            LangchainDocument(
+                page_content="Content",
+                metadata={
+                    "document_id": "doc-1",
+                    "filename": "cv_john.pdf",
+                    "full_name": "John Doe",
+                    "chunk_index": 0,
+                },
+            ),
+        ]
+
+        async def mock_stream(*args: object, **kwargs: object):
+            raise RuntimeError("unexpected")
+            if False:
+                yield  # pragma: no cover
+
+        rag_service.llm.astream = mock_stream
+
+        chunks = []
+        async for chunk in rag_service.query_stream("Question"):
+            chunks.append(json.loads(chunk.strip()))
+
+        assert chunks == [
+            {
+                "type": "error",
+                "message": "An unexpected error occurred. Please try again.",
+            }
+        ]
+
 
 class TestGetRelevantChunks:
     """Tests for get_relevant_chunks method."""
@@ -338,3 +424,14 @@ class TestGetRelevantChunks:
         result = rag_service.get_relevant_chunks("obscure query")
 
         assert result == []
+
+    def test_raises_vector_search_error_on_failure(
+        self, rag_service: RAGService, mock_vector_store_service: MagicMock
+    ) -> None:
+        """Should raise VectorSearchError on retrieval failure."""
+        mock_vector_store_service.similarity_search_with_score.side_effect = Exception(
+            "boom"
+        )
+
+        with pytest.raises(VectorSearchError, match="Failed to retrieve relevant chunks"):
+            rag_service.get_relevant_chunks("query")
