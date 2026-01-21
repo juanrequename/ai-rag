@@ -65,7 +65,7 @@ Moreover, there is coverage pytest plugin with required code coverage level 100%
 
 ```bash
 # see all pytest configuration flags in pyproject.toml
-pytest
+uv run pytest
 ```
 
 <br>
