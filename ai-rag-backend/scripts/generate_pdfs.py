@@ -74,6 +74,11 @@ class CVData(BaseModel):
         description="Professional email address using the person's name",
         examples=["john.smith@gmail.com"]
     )
+    gender: str = Field(
+        description="Gender of the person",
+        examples=["Male", "Female"],
+        default="Male"
+    )
     phone: str = Field(
         description="Phone number in international format",
         examples=["+1 (555) 123-4567", "+44 20 7946 0958"]
@@ -131,28 +136,29 @@ def generate_cv_data(role: str, chain) -> CVData:
     return cv_data
 
 
-def generate_cv_image(role: str, image_generator: DallEAPIWrapper) -> Optional[str]:
+def generate_cv_image(role: str, gender: str, image_generator: DallEAPIWrapper) -> Optional[str]:
     """Generate a professional avatar/headshot image for a CV.
-    
+
     Args:
         role: The job role for context in generating an appropriate image.
+        gender: The person's gender to tailor the headshot prompt.
         image_generator: DallEAPIWrapper instance for image generation.
-    
+
     Returns:
         Path to the downloaded image file, or None if generation/download failed.
     """
-    prompt = f"Professional headshot portrait photo of a {role}, corporate style, neutral background, high quality, photorealistic"
+    prompt = f"Professional headshot portrait photo of a {gender} {role}, corporate style, neutral background, high quality, photorealistic"
     image_url = image_generator.run(prompt)
-    
+
     # Download image to temp file
     try:
         response = requests.get(image_url, timeout=30)
         response.raise_for_status()
-        
+
         suffix = ".png"
         if "jpeg" in response.headers.get("content-type", ""):
             suffix = ".jpg"
-        
+
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
         temp_file.write(response.content)
         temp_file.close()
@@ -298,7 +304,7 @@ class GraphState(TypedDict, total=False):
     error: Optional[str]
 
 
-def build_chain(api_key: str) -> Runnable:
+def build_chain(api_key: str):
     """Build the prompt + structured LLM chain."""
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.8, api_key=api_key)
     structured_llm = llm.with_structured_output(CVData, method="json_schema", strict=True)
@@ -342,7 +348,7 @@ def build_state_graph(chain: Runnable, image_generator: DallEAPIWrapper):
         if not state.get("cv_data"):
             return {}
         try:
-            path = generate_cv_image(state["role"], image_generator)
+            path = generate_cv_image(role=state["role"], gender=state["cv_data"].gender, image_generator=image_generator)
             return {"image_path": path}
         except Exception as e:
             return {"error": str(e)}
