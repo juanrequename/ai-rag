@@ -19,6 +19,8 @@ from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
+from langgraph.graph.state import CompiledStateGraph
+from langchain_core.runnables import Runnable
 
 
 OUTPUT_DIR = Path(__file__).parent.parent / "pdf_files"
@@ -287,25 +289,17 @@ def select_roles(count: int) -> List[str]:
     while len(selected) < count:
         selected.append(random.choice(ROLES))
     return selected
+ 
+class GraphState(TypedDict, total=False):
+    role: str
+    cv_data: Optional[CVData]
+    image_path: Optional[str]
+    pdf_path: Optional[str]
+    error: Optional[str]
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate fake CVs in PDF format")
-    parser.add_argument(
-        "-n",
-        type=int,
-        default=25,
-        help="Number of CVs to generate (default: 25)"
-    )
-    args = parser.parse_args()
-    num_cvs = args.n
-
-    api_key = os.getenv("RAG__OPENAI_API_KEY")
-    if not api_key:
-        print("Set RAG__OPENAI_API_KEY and rerun.")
-        return
-
-    # Configure LLM with structured output for strict validation
+def build_chain(api_key: str) -> Runnable:
+    """Build the prompt + structured LLM chain."""
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.8, api_key=api_key)
     structured_llm = llm.with_structured_output(CVData, method="json_schema", strict=True)
     prompt = PromptTemplate(
@@ -322,24 +316,17 @@ def main() -> None:
 
         The CV will be automatically structured according to the schema."""
     )
-    chain = prompt | structured_llm
-    
-    # Configure DALL·E image generator
-    image_generator = DallEAPIWrapper(api_key=api_key, size="256x256")
+    return prompt | structured_llm
 
-    selected_roles = select_roles(num_cvs)
 
-    print(f"Generating {num_cvs} CVs into {OUTPUT_DIR}")
+def build_image_generator(api_key: str):
+    """Create and return the DALL·E image generator."""
+    return DallEAPIWrapper(api_key=api_key, size="256x256")
 
-    # --- Langgraph state graph to orchestrate generation -> image -> pdf ---
-    class GraphState(TypedDict, total=False):
-        role: str
-        cv_data: Optional[CVData]
-        image_path: Optional[str]
-        pdf_path: Optional[str]
-        error: Optional[str]
 
-    builder = StateGraph(GraphState)
+def build_state_graph(chain: Runnable, image_generator: DallEAPIWrapper):
+    """Construct and compile the StateGraph used for generation."""
+    state_graph = StateGraph(GraphState)
 
     def generate_cv_node(state: GraphState):
         role = state["role"]
@@ -370,16 +357,42 @@ def main() -> None:
         except Exception as e:
             return {"error": str(e)}
 
-    builder.add_node("generate_cv", generate_cv_node)
-    builder.add_node("generate_image", generate_image_node)
-    builder.add_node("create_pdf", create_pdf_node)
+    state_graph.add_node("generate_cv", generate_cv_node)
+    state_graph.add_node("generate_image", generate_image_node)
+    state_graph.add_node("create_pdf", create_pdf_node)
 
-    builder.add_edge(START, "generate_cv")
-    builder.add_edge("generate_cv", "generate_image")
-    builder.add_edge("generate_image", "create_pdf")
-    builder.add_edge("create_pdf", END)
+    state_graph.add_edge(START, "generate_cv")
+    state_graph.add_edge("generate_cv", "generate_image")
+    state_graph.add_edge("generate_image", "create_pdf")
+    state_graph.add_edge("create_pdf", END)
 
-    graph = builder.compile()
+    return state_graph
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate fake CVs in PDF format")
+    parser.add_argument(
+        "-n",
+        type=int,
+        default=25,
+        help="Number of CVs to generate (default: 25)"
+    )
+    args = parser.parse_args()
+    num_cvs = args.n
+
+    api_key = os.getenv("RAG__OPENAI_API_KEY")
+    if not api_key:
+        print("Set RAG__OPENAI_API_KEY and rerun.")
+        return
+
+    chain = build_chain(api_key)
+    image_generator = build_image_generator(api_key)
+
+    selected_roles = select_roles(num_cvs)
+
+    print(f"Generating {num_cvs} CVs into {OUTPUT_DIR}")
+
+    graph = build_state_graph(chain, image_generator)
 
     for idx, role in enumerate(selected_roles, start=1):
         print(f"[{idx}/{num_cvs}] role={role}")
@@ -387,7 +400,7 @@ def main() -> None:
 
         # run the graph
         try:
-            result_state = graph.invoke(initial_state)
+            result_state = graph.compile().invoke(initial_state)
             
             cv_data = result_state.get("cv_data")
             pdf_path = result_state.get("pdf_path")
@@ -401,7 +414,7 @@ def main() -> None:
             if image_path and os.path.exists(image_path):
                 os.unlink(image_path)
         except AttributeError:
-            result_state = graph.invoke(initial_state)
+            result_state = graph.compile().invoke(initial_state)
 
         if result_state.get("error"):
             print(f"✗ Error generating CV for {role}: {result_state['error']}")
