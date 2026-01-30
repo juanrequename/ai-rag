@@ -297,6 +297,15 @@ def create_pdf(cv_data: CVData, image_path: Optional[str] = None) -> str:
     return str(output_path)
 
 
+def select_roles(count: int) -> List[str]:
+    """Return a list of roles."""
+    unique_count = min(len(ROLES), count)
+    selected = random.sample(ROLES, unique_count)
+    while len(selected) < count:
+        selected.append(random.choice(ROLES))
+    return selected
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate fake CVs in PDF format")
     parser.add_argument(
@@ -320,9 +329,7 @@ def main() -> None:
     image_generator = DallEAPIWrapper(api_key=api_key, size="256x256")
 
     num_cvs = args.n
-    selected_roles = random.sample(ROLES, min(len(ROLES), num_cvs))
-    while len(selected_roles) < num_cvs:
-        selected_roles.append(random.choice(ROLES))
+    selected_roles = select_roles(num_cvs)
 
     print(f"Generating {num_cvs} CVs into {OUTPUT_DIR}")
     for idx, role in enumerate(selected_roles, start=1):
