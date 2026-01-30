@@ -111,30 +111,12 @@ class CVData(BaseModel):
         examples=["English", "Spanish", "French", "German", "Italian", "Portuguese", "Russian", "Chinese", "Japanese", "Korean"]
     )
 
-
-cv_prompt = PromptTemplate(
-    input_variables=["role"],
-    template="""Generate a fake but realistic CV for a person applying for a {role} role.
-
-Requirements:
-- Make all information fictional but realistic
-- Include 2-3 work experiences with 3-4 responsibilities each
-- Include 4-8 relevant technical skills for the role
-- Include 1-2 education entries
-- Use diverse names (e.g. Michael, James, John, Louis, Noah, etc), backgrounds, and locations
-- Make the professional summary natural and compelling (2-3 sentences)
-- Include at least 1 language
-
-The CV will be automatically structured according to the schema."""
-)
-
-
-def generate_cv_data(role: str, cv_chain) -> CVData:
+def generate_cv_data(role: str, chain) -> CVData:
     """Generate CV data using LangChain structured output.
     
     Args:
         role: The job role to generate CV for
-        cv_chain: LangChain chain with structured output configured
+        chain: LangChain chain with structured output configured
         
     Returns:
         Validated CVData object
@@ -142,7 +124,7 @@ def generate_cv_data(role: str, cv_chain) -> CVData:
     Raises:
         ValidationError: If LLM output doesn't match schema
     """
-    cv_data = cv_chain.invoke({"role": role})
+    cv_data = chain.invoke({"role": role})
     return cv_data
 
 
@@ -315,7 +297,8 @@ def main() -> None:
         help="Number of CVs to generate (default: 25)"
     )
     args = parser.parse_args()
-    
+    num_cvs = args.n
+
     api_key = os.getenv("RAG__OPENAI_API_KEY")
     if not api_key:
         print("Set RAG__OPENAI_API_KEY and rerun.")
@@ -324,11 +307,25 @@ def main() -> None:
     # Configure LLM with structured output for strict validation
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.8, api_key=api_key)
     structured_llm = llm.with_structured_output(CVData, method="json_schema", strict=True)
-    cv_chain = cv_prompt | structured_llm
+    prompt = PromptTemplate(
+        input_variables=["role"],
+        template="""Generate a fake but realistic CV for a person applying for a {role} role.
+        Requirements:
+        - Make all information fictional but realistic
+        - Include 2-3 work experiences with 3-4 responsibilities each
+        - Include 4-8 relevant technical skills for the role
+        - Include 1-2 education entries
+        - Use diverse names (e.g. Michael, James, John, Louis, Noah, etc), backgrounds, and locations
+        - Make the professional summary natural and compelling (2-3 sentences)
+        - Include at least 1 language
+
+        The CV will be automatically structured according to the schema."""
+    )
+    chain = prompt | structured_llm
     
+    # Configure DALL·E image generator
     image_generator = DallEAPIWrapper(api_key=api_key, size="256x256")
 
-    num_cvs = args.n
     selected_roles = select_roles(num_cvs)
 
     print(f"Generating {num_cvs} CVs into {OUTPUT_DIR}")
@@ -338,7 +335,7 @@ def main() -> None:
         
         try:
             # Generate CV data with structured output (automatically validated)
-            cv_data = generate_cv_data(role, cv_chain)
+            cv_data = generate_cv_data(role, chain)
             print(f"✓ Generated CV for: {cv_data.full_name}")
             
             # Generate profile image
