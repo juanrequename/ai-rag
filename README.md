@@ -4,8 +4,7 @@
 
 ▶️ **Watch Demo Video**
 
-[![Watch Demo Video](https://cdn.loom.com/sessions/thumbnails/899831f1cb034ef9aac66aff268e74fa-9b59b099789dce76-full-play.gif#t=0.1)](https://www.loom.com/share/899831f1cb034ef9aac66aff268e74fa)
-
+[![Watch Demo Video](https://cdn.loom.com/sessions/thumbnails/92de2c767b124e7d8c40de40d2eec703-d8d3956d92c9df27-full-play.gif#t=0.1)](https://www.loom.com/share/92de2c767b124e7d8c40de40d2eec703)
 
 ---
 
