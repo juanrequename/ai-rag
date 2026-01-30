@@ -44,16 +44,11 @@ class Experience(BaseModel):
     company: str
     location: str
     dates: str
-    responsibilities: List[str]
-    
-    @field_validator('responsibilities')
-    @classmethod
-    def validate_responsibilities(cls, v: List[str]) -> List[str]:
-        if not v or len(v) < 1:
-            raise ValueError('Must have at least 1 responsibility')
-        if len(v) > 10:
-            raise ValueError('Too many responsibilities (max 10)')
-        return v
+    responsibilities: List[str] = Field(
+        description="List of responsibilities",
+        min_length=1,
+        max_length=10,
+    )
 
 
 class Education(BaseModel):
@@ -68,7 +63,9 @@ class CVData(BaseModel):
     """Complete CV data structure with validation."""
     full_name: str = Field(
         description="Full name in format 'First Last' (e.g., 'John Smith'). Use real names, not fake ones.",
-        examples=["John Smith", "Carlos Rodriguez"]
+        examples=["John Smith", "Carlos Rodriguez"],
+        min_length=2,
+        max_length=100,
     )
     email: EmailStr = Field(
         description="Professional email address using the person's name",
@@ -97,48 +94,22 @@ class CVData(BaseModel):
         max_length=20,
         examples=["Python", "SQL", "AWS", "Docker", "Git", "React", "Node.js", "REST APIs"]
     )
-    experience: List[Experience]
-    education: List[Education]
-    languages: List[str]
-    
-    @field_validator('full_name')
-    @classmethod
-    def validate_full_name(cls, v: str) -> str:
-        if not v or len(v.strip()) < 2:
-            raise ValueError('Full name must be at least 2 characters')
-        return v.strip()
-    
-    @field_validator('skills')
-    @classmethod
-    def validate_skills(cls, v: List[str]) -> List[str]:
-        if len(v) < 4:
-            raise ValueError('Must have at least 4 skills')
-        if len(v) > 20:
-            raise ValueError('Too many skills (max 20)')
-        return v
-    
-    @field_validator('experience')
-    @classmethod
-    def validate_experience(cls, v: List[Experience]) -> List[Experience]:
-        if len(v) < 1:
-            raise ValueError('Must have at least 1 work experience')
-        if len(v) > 10:
-            raise ValueError('Too many work experiences (max 10)')
-        return v
-    
-    @field_validator('education')
-    @classmethod
-    def validate_education(cls, v: List[Education]) -> List[Education]:
-        if len(v) < 1:
-            raise ValueError('Must have at least 1 education entry')
-        return v
-    
-    @field_validator('languages')
-    @classmethod
-    def validate_languages(cls, v: List[str]) -> List[str]:
-        if len(v) < 1:
-            raise ValueError('Must have at least 1 language')
-        return v
+    experience: List[Experience] = Field(
+        description="List of work experience entries",
+        min_length=1,
+        max_length=10,
+    )
+    education: List[Education] = Field(
+        description="List of education entries",
+        min_length=1,
+        max_length=3,
+    )
+    languages: List[str] = Field(
+        description="List of languages the person can speak",
+        min_length=1,
+        max_length=3,
+        examples=["English", "Spanish", "French", "German", "Italian", "Portuguese", "Russian", "Chinese", "Japanese", "Korean"]
+    )
 
 
 cv_prompt = PromptTemplate(
