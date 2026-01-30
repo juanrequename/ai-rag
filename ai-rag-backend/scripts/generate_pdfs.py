@@ -19,7 +19,6 @@ from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph.state import CompiledStateGraph
 from langchain_core.runnables import Runnable
 
 
