@@ -187,7 +187,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.1.7" },
     { name = "langchain-postgres", specifier = ">=0.0.16" },
     { name = "langchain-text-splitters", specifier = ">=1.1.0" },
-    { name = "langgraph", specifier = ">=0.4.0" },
+    { name = "langgraph", specifier = ">=1.0.6" },
     { name = "pgvector", specifier = ">=0.3.6" },
     { name = "pydantic", extras = ["dotenv", "email"], specifier = ">=2.12.3" },
     { name = "pydantic-settings", specifier = ">=2.11.0" },

@@ -7,7 +7,7 @@ import os
 import random
 import tempfile
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, TypedDict
 
 import requests
 from dotenv import load_dotenv
@@ -18,6 +18,7 @@ load_dotenv()
 from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, START, END
 
 
 OUTPUT_DIR = Path(__file__).parent.parent / "pdf_files"
@@ -329,35 +330,87 @@ def main() -> None:
     selected_roles = select_roles(num_cvs)
 
     print(f"Generating {num_cvs} CVs into {OUTPUT_DIR}")
+
+    # --- Langgraph state graph to orchestrate generation -> image -> pdf ---
+    class GraphState(TypedDict, total=False):
+        role: str
+        cv_data: Optional[CVData]
+        image_path: Optional[str]
+        pdf_path: Optional[str]
+        error: Optional[str]
+
+    builder = StateGraph(GraphState)
+
+    def generate_cv_node(state: GraphState):
+        role = state["role"]
+        try:
+            cv = generate_cv_data(role, chain)
+            return {"cv_data": cv}
+        except ValidationError as e:
+            return {"error": f"validation: {e}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def generate_image_node(state: GraphState):
+        if not state.get("cv_data"):
+            return {}
+        try:
+            path = generate_cv_image(state["role"], image_generator)
+            return {"image_path": path}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def create_pdf_node(state: GraphState):
+        cv = state.get("cv_data")
+        if not cv:
+            return {"error": "no_cv_data"}
+        try:
+            pdf = create_pdf(cv, state.get("image_path"))
+            return {"pdf_path": pdf}
+        except Exception as e:
+            return {"error": str(e)}
+
+    builder.add_node("generate_cv", generate_cv_node)
+    builder.add_node("generate_image", generate_image_node)
+    builder.add_node("create_pdf", create_pdf_node)
+
+    builder.add_edge(START, "generate_cv")
+    builder.add_edge("generate_cv", "generate_image")
+    builder.add_edge("generate_image", "create_pdf")
+    builder.add_edge("create_pdf", END)
+
+    graph = builder.compile()
+
     for idx, role in enumerate(selected_roles, start=1):
         print(f"[{idx}/{num_cvs}] role={role}")
-        image_path: Optional[str] = None
-        
+        initial_state: GraphState = {"role": role}
+
+        # run the graph
         try:
-            # Generate CV data with structured output (automatically validated)
-            cv_data = generate_cv_data(role, chain)
-            print(f"✓ Generated CV for: {cv_data.full_name}")
+            result_state = graph.invoke(initial_state)
             
-            # Generate profile image
-            print(f"  Generating profile image...")
-            image_path = generate_cv_image(role, image_generator)
-            
-            # Create PDF with validated data
-            pdf_path = create_pdf(cv_data, image_path)
-            print(f"✓ Saved to {pdf_path}\n")
-            
-        except ValidationError as e:
-            print(f"✗ Validation failed for {role}: {e}")
-            print("Skipping this CV and continuing...\n")
-            continue
-        except Exception as e:
-            print(f"✗ Error generating CV for {role}: {e}")
-            print("Skipping this CV and continuing...\n")
-            continue
-        finally:
-            # Clean up temp image file
+            cv_data = result_state.get("cv_data")
+            pdf_path = result_state.get("pdf_path")
+            image_path = result_state.get("image_path")
+
+            if cv_data:
+                print(f"✓ Generated CV for: {cv_data.full_name}")
+            if pdf_path:
+                print(f"✓ Saved to {pdf_path}\n")
+
             if image_path and os.path.exists(image_path):
                 os.unlink(image_path)
+        except AttributeError:
+            result_state = graph.invoke(initial_state)
+
+        if result_state.get("error"):
+            print(f"✗ Error generating CV for {role}: {result_state['error']}")
+            print("Skipping this CV and continuing...\n")
+            if result_state.get("image_path") and os.path.exists(result_state["image_path"]):
+                os.unlink(result_state["image_path"])
+            continue
+
+       
 
 
 if __name__ == "__main__":
