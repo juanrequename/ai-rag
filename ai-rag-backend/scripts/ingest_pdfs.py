@@ -15,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from langchain_core.documents import Document as LangchainDocument
 from app.core.config import get_settings, Settings
 from app.models import Document
 from app.rag import PDFService, VectorStoreService
@@ -53,8 +54,6 @@ def ingest_pdf(
     """
     try:
         # Process PDF
-        from langchain_core.documents import Document as LangchainDocument
-        
         chunks: list[LangchainDocument]
         page_count: int
         document_id: str
